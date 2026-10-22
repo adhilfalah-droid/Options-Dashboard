@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Options Dashboard — Live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0e11;
+    --panel:#12161b;
+    --border:#232a31;
+    --text:#e6e9ec;
+    --muted:#8a939c;
+    --call:#3ecf8e;
+    --put:#ef5b5b;
+    --accent:#4f9ef8;
+    --rv7:#c9a94f;
+    --rv14:#8f7de0;
+    --rv30:#5bb8ef;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .num{font-family:"SF Mono",Menlo,Consolas,monospace;}
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding:14px 20px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .title{font-size:15px;font-weight:600;letter-spacing:0.2px;white-space:nowrap;}
+  .title span{color:var(--muted);font-weight:400;}
+
+  .coin-pick{display:flex;gap:6px;}
+  .pill{
+    padding:6px 14px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--muted);
+    font-size:13px;
+    cursor:pointer;
+    transition:all .12s;
+  }
+  .pill:hover{border-color:#3a434c;color:var(--text);}
+  .pill.active{background:var(--accent);color:#04121f;border-color:var(--accent);font-weight:600;}
+
+  .spacer{flex:1;}
+
+  .status{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted);}
+  .status b{color:var(--text);}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--call);display:inline-block;margin-right:5px;}
+  .dot.bad{background:var(--put);}
+  .dot.busy{background:#e0b23e;}
+
+  .refresh-btn{
+    padding:6px 12px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    font-size:12px;
+    cursor:pointer;
+  }
+  .refresh-btn:hover{border-color:var(--accent);}
+
+  .wrap{padding:18px 20px 40px;max-width:1500px;margin:0 auto;}
+
+  .expiry-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .expiry-row .label{font-size:12px;color:var(--muted);margin-right:4px;}
+  .expiry-pill{
+    padding:6px 11px;
+    border-radius:5px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--muted);
+    font-size:12.5px;
+    cursor:pointer;
+    line-height:1.3;
+    text-align:center;
+  }
+  .expiry-pill .dte{display:block;font-size:10px;opacity:.75;}
+  .expiry-pill:hover{border-color:#3a434c;color:var(--text);}
+  .expiry-pill.active{background:#1c2a3a;border-color:var(--accent);color:var(--text);}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:18px 20px 10px;
+    margin-bottom:20px;
+  }
+  .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:4px;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .panel-title{font-size:14px;font-weight:600;}
+  .panel-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .panel-tools{display:flex;gap:6px;align-items:center;}
+  .toggle{
+    padding:4px 10px;
+    border-radius:5px;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--muted);
+    font-size:11.5px;
+    cursor:pointer;
+  }
+  .toggle.active{background:#1c2a3a;border-color:var(--accent);color:var(--text);}
+
+  .metrics{display:flex;gap:22px;font-size:12px;color:var(--muted);margin:8px 0 4px;flex-wrap:wrap;}
+  .metrics b{color:var(--text);}
+  .metrics .call-c{color:var(--call);}
+  .metrics .put-c{color:var(--put);}
+
+  .stat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 28px;
+    margin:10px 0 6px;
+  }
+  .stat-grid .stat-item{padding-bottom:6px;border-bottom:1px solid var(--border);}
+  .stat-grid .stat-label{font-size:11.5px;color:var(--muted);margin-bottom:3px;}
+  .stat-grid .stat-value{font-size:16px;font-weight:600;color:var(--text);}
+  .stat-grid .stat-value.call-c{color:var(--call);}
+  .stat-grid .stat-value.put-c{color:var(--put);}
+  .stat-grid .stat-value.mp{color:#ef5b5b;}
+
+  canvas{width:100% !important;}
+  .chart-box{position:relative;height:360px;margin-top:6px;}
+
+  .legend-row{display:flex;gap:18px;margin-top:8px;font-size:11.5px;color:var(--muted);flex-wrap:wrap;}
+  .legend-row .lg{display:flex;align-items:center;gap:6px;}
+  .sw{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .ln{width:14px;height:2px;display:inline-block;}
+
+  .read-note{
+    font-size:11.5px;
+    color:var(--muted);
+    line-height:1.55;
+    margin-top:12px;
+    padding-top:10px;
+    border-top:1px solid var(--border);
+  }
+  .read-note b{color:var(--text);}
+  .read-note a{color:var(--accent);text-decoration:none;}
+  .read-note a:hover{text-decoration:underline;}
+
+  .empty-note{padding:40px 0;text-align:center;color:var(--muted);font-size:13px;}
+  .err-note{padding:14px 16px;background:#241417;border:1px solid #4a2027;color:#f0a3a8;border-radius:6px;font-size:12.5px;margin-bottom:16px;line-height:1.5;}
+
+  footer{color:var(--muted);font-size:11px;text-align:center;padding:10px 0 30px;}
+  footer a{color:var(--accent);text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title">Options Dashboard <span>· live data</span></div>
+  <div class="coin-pick" id="coinPick"></div>
+  <div class="spacer"></div>
+  <div class="status">
+    <span id="statusDot"><span class="dot busy"></span>loading…</span>
+    <span>Spot <b class="num" id="spotPrice">—</b></span>
+    <span>Next refresh <b class="num" id="countdown">—</b></span>
+  </div>
+  <button class="refresh-btn" id="refreshBtn">Refresh now</button>
+</div>
+
+<div class="wrap">
+
+  <div id="errBox"></div>
+
+  <div class="expiry-row" id="expiryRow">
+    <span class="label">Expiry</span>
+  </div>
+
+  <!-- CHART 1: OI BY STRIKE -->
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Open Interest by Strike</div>
+        <div class="panel-sub" id="oiSub">Calls vs Puts, selected expiry</div>
+      </div>
+    </div>
+    <div class="stat-grid" id="oiMetrics"></div>
+    <div class="chart-box"><canvas id="chartOI"></canvas></div>
+    <div class="legend-row">
+      <span class="lg"><span class="sw" style="background:var(--call)"></span>Calls</span>
+      <span class="lg"><span class="sw" style="background:var(--put)"></span>Puts</span>
+      <span class="lg"><span class="ln" style="background:#ef5b5b;border-top:2px dotted #ef5b5b;height:0;"></span>Total Intrinsic Value</span>
+    </div>
+    <div class="read-note">
+      Calls and puts are <b>never summed</b> — each strike shows two separate bars, one per contract, reflecting contracts currently open right now. (24h volume isn't shown here — it's venue-specific and doesn't reconcile across exchanges the way open interest does.)
+      <br><br>
+      <b>Max Pain Price</b> is the settlement price at which option writers, in aggregate, owe the least to option holders — i.e. where <b>Total Intrinsic Value</b> (the dotted red curve, right axis) is lowest. It's a positioning read, not a prediction. <b>Notional Value</b> is total open interest × current spot. Since every figure here — spot included — is read from one venue, Notional Value is only ever expressed on that venue's own spot price; if you compare it against a figure computed on another exchange's spot, expect a small gap from the normal cross-venue price spread, not a data error.
+      <br><br>
+      <b>OI Δ (24h)</b> compares current open interest against a snapshot taken by this site roughly a day ago — it shows "Building history…" until enough snapshots exist to compare against, which is expected on a freshly deployed instance and not a bug.
+      <br><br>
+      Hover any bar for the exact instrument symbol, contract count, and its own 24h change — <a id="verifyLink" href="#" target="_blank" rel="noopener">cross-check it against the exchange's own board →</a>
+    </div>
+  </div>
+
+  <!-- CHART 2: IV SMILE -->
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">Implied Volatility by Strike</div>
+        <div class="panel-sub">Mark IV per option, selected expiry — dashed line marks current spot</div>
+      </div>
+    </div>
+    <div class="chart-box"><canvas id="chartIV"></canvas></div>
+    <div class="legend-row">
+      <span class="lg"><span class="ln" style="background:var(--call)"></span>Call IV</span>
+      <span class="lg"><span class="ln" style="background:var(--put)"></span>Put IV</span>
+    </div>
+  </div>
+
+  <!-- CHART 3: IV vs RV -->
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">IV Smile vs Realised Volatility</div>
+        <div class="panel-sub">Where the smile sits above the RV lines, premium is running rich; below, it's running cheap</div>
+      </div>
+    </div>
+    <div class="metrics" id="rvMetrics"></div>
+    <div class="chart-box"><canvas id="chartIVRV"></canvas></div>
+    <div class="legend-row">
+      <span class="lg"><span class="ln" style="background:var(--call)"></span>Call IV</span>
+      <span class="lg"><span class="ln" style="background:var(--put)"></span>Put IV</span>
+      <span class="lg"><span class="ln" style="background:var(--rv7)"></span>RV 7d</span>
+      <span class="lg"><span class="ln" style="background:var(--rv14)"></span>RV 14d</span>
+      <span class="lg"><span class="ln" style="background:var(--rv30)"></span>RV 30d</span>
+    </div>
+  </div>
+
+  <footer>
+    Data pulled live by this site's own server, not your browser directly — option chain fields (strike, mark IV, open interest, 24h volume, Greeks) read from the exchange's public option-chain endpoint; realised volatility computed from daily spot closes; OI 24h change computed against this site's own hourly snapshots, which build up over time after deployment.
+    Refresh cadence follows the selected expiry — hourly inside 1 day to expiry, every 2 hours beyond that. Not financial advice.
+  </footer>
+
+</div>
+
+<script>
+const COINS = ['BTC','ETH','SOL','XAUT'];
+
+let state = {
+  coin: 'BTC',
+  expiries: [],        // sorted list of {key, date, dte}
+  selectedExpiry: null,
+  tickersByExpiry: {}, // key -> {calls:[], puts:[]}
+  spot: null,
+  rv: {r7:null, r14:null, r30:null},
+  metric: 'oi',
+  charts: {},
+  refreshMs: 60*60*1000,
+  nextRefreshAt: 0,
+};
+
+function daysToExpiry(date){
+  const ms = date.getTime() - Date.now();
+  return Math.max(0, ms / 86400000);
+}
+
+function fmtExpiryLabel(date){
+  return date.toLocaleDateString('en-GB', {day:'2-digit', month:'short', timeZone:'UTC'});
+}
+
+// ---------- fetch ----------
+// All Bybit calls now happen server-side in /api/dashboard-data — this avoids any
+// browser CORS/sandbox issues entirely, and lets the server diff against its own
+// stored history to compute a real oiChange24h per instrument.
+async function fetchDashboardData(coin){
+  const res = await fetch(`/api/dashboard-data?coin=${coin}`);
+  const json = await res.json();
+  if(!res.ok) throw new Error(json.error || `API HTTP ${res.status}`);
+  return json;
+}
+
+// ---------- data pipeline ----------
+async function loadAll(){
+  setStatus('busy','fetching…');
+  showErr(null);
+  try{
+    const data = await fetchDashboardData(state.coin);
+    const byExpiry = {};
+    for(const t of data.tickers){
+      const date = new Date(t.expiryDate);
+      if(!byExpiry[t.expiryKey]) byExpiry[t.expiryKey] = {date, calls:[], puts:[]};
+      const row = {strike:t.strike, oi:t.oi, vol:t.vol24h, iv:t.iv, symbol:t.symbol, oiChange24h: t.oiChange24h ?? null};
+      if(t.type === 'C') byExpiry[t.expiryKey].calls.push(row);
+      else byExpiry[t.expiryKey].puts.push(row);
+    }
+    for(const k in byExpiry){
+      byExpiry[k].calls.sort((a,b)=>a.strike-b.strike);
+      byExpiry[k].puts.sort((a,b)=>a.strike-b.strike);
+    }
+    const expiries = Object.keys(byExpiry)
+      .map(k => ({key:k, date:byExpiry[k].date, dte:daysToExpiry(byExpiry[k].date)}))
+      .sort((a,b)=>a.date-b.date);
+
+    state.tickersByExpiry = byExpiry;
+    state.expiries = expiries;
+    state.spot = data.spot;
+    state.historyStatus = data.historyStatus;
+    if(!state.selectedExpiry || !byExpiry[state.selectedExpiry]){
+      state.selectedExpiry = expiries.length ? expiries[0].key : null;
+    }
+
+    if(data.tickers.length > 0 && expiries.length === 0){
+      throw new Error(`Got ${data.tickers.length} instruments back but couldn't parse any of them — symbol format may have changed`);
+    }
+
+    state.rv.r7  = data.rv.r7;
+    state.rv.r14 = data.rv.r14;
+    state.rv.r30 = data.rv.r30;
+
+    renderExpiryPills();
+    renderAll();
+    setStatus('ok', `updated ${new Date().toLocaleTimeString()}`);
+    scheduleRefresh();
+  }catch(err){
+    console.error(err);
+    setStatus('bad','fetch failed');
+    showErr(`Couldn't load live data (${err.message}). Click "Refresh now" to retry.`);
+  }
+}
+
+function scheduleRefresh(){
+  const sel = state.expiries.find(e => e.key === state.selectedExpiry);
+  state.refreshMs = (sel && sel.dte <= 1) ? 60*60*1000 : 120*60*1000;
+  state.nextRefreshAt = Date.now() + state.refreshMs;
+}
+
+setInterval(() => {
+  if(!state.nextRefreshAt) return;
+  const left = state.nextRefreshAt - Date.now();
+  if(left <= 0){ loadAll(); return; }
+  const m = Math.floor(left/60000), s = Math.floor((left%60000)/1000);
+  document.getElementById('countdown').textContent = `${m}m ${s.toString().padStart(2,'0')}s`;
+}, 1000);
+
+// ---------- UI: coin / expiry pills ----------
+function renderCoinPicker(){
+  const el = document.getElementById('coinPick');
+  el.innerHTML = '';
+  COINS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'pill' + (c===state.coin?' active':'');
+    b.textContent = c;
+    b.onclick = () => { state.coin = c; state.selectedExpiry = null; loadAll(); renderCoinPicker(); };
+    el.appendChild(b);
+  });
+}
+
+function renderExpiryPills(){
+  const row = document.getElementById('expiryRow');
+  row.innerHTML = '<span class="label">Expiry</span>';
+  state.expiries.forEach(e => {
+    const b = document.createElement('button');
+    b.className = 'expiry-pill' + (e.key===state.selectedExpiry?' active':'');
+    const dteLabel = e.dte < 1 ? '0DTE' : `${Math.round(e.dte)}D`;
+    b.innerHTML = `${fmtExpiryLabel(e.date)}<span class="dte">${dteLabel}</span>`;
+    b.onclick = () => { state.selectedExpiry = e.key; scheduleRefresh(); renderExpiryPills(); renderAll(); };
+    row.appendChild(b);
+  });
+}
+
+function setStatus(kind, text){
+  const dotClass = kind==='ok' ? '' : (kind==='bad' ? ' bad' : ' busy');
+  document.getElementById('statusDot').innerHTML = `<span class="dot${dotClass}"></span>${text}`;
+  document.getElementById('spotPrice').textContent = state.spot ? state.spot.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+}
+
+function showErr(msg){
+  const box = document.getElementById('errBox');
+  box.innerHTML = msg ? `<div class="err-note">${msg}</div>` : '';
+}
+
+// ---------- charts ----------
+const vLinesPlugin = {
+  id:'vLines',
+  afterDraw(chart){
+    const lines = chart.$vLines;
+    if(!lines || !lines.length) return;
+    const {ctx, chartArea:{top,bottom}} = chart;
+    lines.forEach(line => {
+      if(line.px === undefined || line.px === null) return;
+      ctx.save();
+      ctx.strokeStyle = line.color;
+      ctx.setLineDash([4,4]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(line.px, top);
+      ctx.lineTo(line.px, bottom);
+      ctx.stroke();
+      if(line.label){
+        ctx.setLineDash([]);
+        ctx.fillStyle = line.color;
+        ctx.font = '11px -apple-system, sans-serif';
+        ctx.textAlign = line.px > (chart.chartArea.left + chart.chartArea.right)/2 ? 'right' : 'left';
+        ctx.fillText(line.label, line.px + (ctx.textAlign==='right'?-6:6), top + 12);
+      }
+      ctx.restore();
+    });
+  }
+};
+Chart.register(vLinesPlugin);
+
+function nearestIndexForSpot(strikes, spot){
+  if(!spot || !strikes.length) return null;
+  let best=0, bd=Infinity;
+  strikes.forEach((s,i)=>{ const d=Math.abs(s-spot); if(d<bd){bd=d; best=i;} });
+  return best;
+}
+
+function fmtAbbr(n){
+  const abs = Math.abs(n);
+  if(abs >= 1e9) return (n/1e9).toFixed(2)+'G';
+  if(abs >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if(abs >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return n.toFixed(0);
+}
+
+// Max Pain: for each candidate settlement price (each listed strike), sum the intrinsic
+// value option writers would owe across every open call and put if settlement happened there.
+// The strike where that total is lowest is Max Pain.
+function computeMaxPain(strikes, calls, puts){
+  const callOI = Object.fromEntries(calls.map(r=>[r.strike, r.oi]));
+  const putOI  = Object.fromEntries(puts.map(r=>[r.strike, r.oi]));
+  const curve = strikes.map(S => {
+    let payout = 0;
+    strikes.forEach(K => {
+      const co = callOI[K]||0, po = putOI[K]||0;
+      if(co) payout += Math.max(S-K,0) * co;
+      if(po) payout += Math.max(K-S,0) * po;
+    });
+    return payout;
+  });
+  let bestIdx = 0, bestVal = Infinity;
+  curve.forEach((v,i) => { if(v < bestVal){ bestVal = v; bestIdx = i; } });
+  return { curve, maxPainStrike: strikes[bestIdx], maxPainIdx: bestIdx };
+}
+
+
+function baseAxisOpts(xLabel, yLabel){
+  return {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'#1a2129', borderColor:'#2a333c', borderWidth:1,
+        titleColor:'#e6e9ec', bodyColor:'#e6e9ec', padding:10
+      }
+    },
+    scales:{
+      x:{ title:{display:true, text:xLabel, color:'#8a939c'}, grid:{color:'#1c2229'}, ticks:{color:'#8a939c'} },
+      y:{ title:{display:true, text:yLabel, color:'#8a939c'}, grid:{color:'#1c2229'}, ticks:{color:'#8a939c'} }
+    }
+  };
+}
+
+function renderOIChart(data){
+  const strikes = Array.from(new Set([...data.calls.map(r=>r.strike), ...data.puts.map(r=>r.strike)])).sort((a,b)=>a-b);
+  const callMap = Object.fromEntries(data.calls.map(r=>[r.strike, r.oi]));
+  const putMap  = Object.fromEntries(data.puts.map(r=>[r.strike, r.oi]));
+  const callSymMap = Object.fromEntries(data.calls.map(r=>[r.strike, r.symbol]));
+  const putSymMap  = Object.fromEntries(data.puts.map(r=>[r.strike, r.symbol]));
+  const callChgMap = Object.fromEntries(data.calls.map(r=>[r.strike, r.oiChange24h]));
+  const putChgMap  = Object.fromEntries(data.puts.map(r=>[r.strike, r.oiChange24h]));
+  const unit = 'contracts open right now';
+
+  const {curve: intrinsicCurve, maxPainStrike, maxPainIdx} = computeMaxPain(strikes, data.calls, data.puts);
+
+  const ctx = document.getElementById('chartOI');
+  if(state.charts.oi) state.charts.oi.destroy();
+  const chart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: strikes.map(s=>s.toLocaleString()),
+      datasets:[
+        {label:'Calls', data: strikes.map(s=>callMap[s]||0), backgroundColor:'#3ecf8e', yAxisID:'y'},
+        {label:'Puts',  data: strikes.map(s=>putMap[s]||0),  backgroundColor:'#ef5b5b', yAxisID:'y'},
+        {
+          label:'Total Intrinsic Value', type:'line', data: intrinsicCurve, yAxisID:'y1',
+          borderColor:'#ef5b5b', backgroundColor:'#ef5b5b', pointRadius:2, borderWidth:0,
+          showLine:false, pointStyle:'rect'
+        },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1a2129', borderColor:'#2a333c', borderWidth:1,
+          titleColor:'#e6e9ec', bodyColor:'#e6e9ec', padding:10,
+          callbacks:{
+            label:(ctxItem)=>{
+              const strike = strikes[ctxItem.dataIndex];
+              if(ctxItem.dataset.label === 'Total Intrinsic Value'){
+                return `Total Intrinsic Value if settled here: $${fmtAbbr(ctxItem.raw)}`;
+              }
+              const sym = ctxItem.dataset.label==='Calls' ? callSymMap[strike] : putSymMap[strike];
+              const chg = ctxItem.dataset.label==='Calls' ? callChgMap[strike] : putChgMap[strike];
+              const chgTxt = (chg === null || chg === undefined) ? '' :
+                ` · Δ24h: ${chg>=0?'+':''}${chg.toLocaleString(undefined,{maximumFractionDigits:1})}`;
+              return `${ctxItem.dataset.label}: ${ctxItem.raw.toLocaleString(undefined,{maximumFractionDigits:2})} (${unit})${chgTxt}${sym ? ' · ' + sym : ''}`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{ title:{display:true, text:'Strike', color:'#8a939c'}, grid:{color:'#1c2229'}, ticks:{color:'#8a939c'} },
+        y:{ position:'left', title:{display:true, text:'Open Interest (contracts)', color:'#8a939c'}, grid:{color:'#1c2229'}, ticks:{color:'#8a939c'} },
+        y1:{ position:'right', title:{display:true, text:'Total Intrinsic Value ($)', color:'#ef5b5b'}, grid:{display:false}, ticks:{color:'#ef5b5b', callback:(v)=>'$'+fmtAbbr(v)} }
+      }
+    }
+  });
+
+  chart.$vLines = [];
+  requestAnimationFrame(()=>{
+    const xScale = chart.scales.x;
+    chart.$vLines = [{ px: xScale.getPixelForValue(maxPainIdx), color:'#ef5b5b', label:`Max Pain $${maxPainStrike.toLocaleString()}` }];
+    chart.draw();
+  });
+  state.charts.oi = chart;
+
+  const totCalls = strikes.reduce((a,s)=>a+(callMap[s]||0),0);
+  const totPuts  = strikes.reduce((a,s)=>a+(putMap[s]||0),0);
+  const totOI = totCalls + totPuts;
+  const pcr = totCalls>0 ? (totPuts/totCalls) : 0;
+  const notional = state.spot ? totOI * state.spot : null;
+
+  let oiChgHtml;
+  const hist = state.historyStatus;
+  if(hist && hist.available){
+    const chgVals = strikes.map(s => (callChgMap[s]||0) + (putChgMap[s]||0));
+    const knownStrikes = strikes.filter(s => callChgMap[s] != null || putChgMap[s] != null);
+    if(knownStrikes.length){
+      const totalChg = knownStrikes.reduce((a,s)=> a + (callChgMap[s]||0) + (putChgMap[s]||0), 0);
+      const sign = totalChg >= 0 ? '+' : '';
+      const color = totalChg >= 0 ? 'call-c' : 'put-c';
+      oiChgHtml = `<div class="stat-value ${color}">${sign}${totalChg.toLocaleString(undefined,{maximumFractionDigits:1})}</div><div class="stat-label" style="margin-top:2px">vs ~${hist.snapshotAgeHours}h ago</div>`;
+    } else {
+      oiChgHtml = `<div class="stat-value" style="font-size:13px;color:var(--muted)">No overlap yet</div>`;
+    }
+  } else {
+    oiChgHtml = `<div class="stat-value" style="font-size:13px;color:var(--muted)">Building history…</div>`;
+  }
+
+  document.getElementById('oiMetrics').innerHTML =
+    `<div class="stat-item"><div class="stat-label">Call Open Interest</div><div class="stat-value call-c">${totCalls.toLocaleString(undefined,{maximumFractionDigits:1})}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Put Open Interest</div><div class="stat-value put-c">${totPuts.toLocaleString(undefined,{maximumFractionDigits:1})}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Total Open Interest</div><div class="stat-value">${totOI.toLocaleString(undefined,{maximumFractionDigits:1})}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Put/Call Ratio</div><div class="stat-value">${pcr.toFixed(2)}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Notional Value</div><div class="stat-value">${notional!=null ? '$'+notional.toLocaleString(undefined,{maximumFractionDigits:0}) : '—'}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Max Pain Price</div><div class="stat-value mp">$${maxPainStrike.toLocaleString()}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">OI Δ (24h)</div>${oiChgHtml}</div>`;
+
+  document.getElementById('oiSub').textContent =
+    `Calls vs Puts · ${fmtExpiryLabel(data.date)} expiry · open interest in contracts`;
+}
+
+function buildIVDataset(strikes, calls, puts){
+  const callMap = Object.fromEntries(calls.map(r=>[r.strike, r.iv]));
+  const putMap  = Object.fromEntries(puts.map(r=>[r.strike, r.iv]));
+  return {
+    labels: strikes.map(s=>s.toLocaleString()),
+    callVals: strikes.map(s=> callMap[s] ?? null),
+    putVals:  strikes.map(s=> putMap[s] ?? null),
+  };
+}
+
+function renderIVChart(data){
+  const strikes = Array.from(new Set([...data.calls.map(r=>r.strike), ...data.puts.map(r=>r.strike)])).sort((a,b)=>a-b);
+  const {labels, callVals, putVals} = buildIVDataset(strikes, data.calls, data.puts);
+  const spotIdx = nearestIndexForSpot(strikes, state.spot);
+
+  const ctx = document.getElementById('chartIV');
+  if(state.charts.iv) state.charts.iv.destroy();
+  const chart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Call IV', data:callVals, borderColor:'#3ecf8e', backgroundColor:'transparent', pointRadius:2.5, tension:0.25, spanGaps:true},
+        {label:'Put IV',  data:putVals,  borderColor:'#ef5b5b', backgroundColor:'transparent', pointRadius:2.5, tension:0.25, spanGaps:true},
+      ]
+    },
+    options: baseAxisOpts('Strike', 'Implied Volatility (%)')
+  });
+  chart.$vLines = [];
+  if(spotIdx !== null){
+    requestAnimationFrame(()=>{
+      const xScale = chart.scales.x;
+      chart.$vLines = [{ px: xScale.getPixelForValue(spotIdx), color:'#4f9ef8', label:'Spot' }];
+      chart.draw();
+    });
+  }
+  state.charts.iv = chart;
+}
+
+function renderIVRVChart(data){
+  const strikes = Array.from(new Set([...data.calls.map(r=>r.strike), ...data.puts.map(r=>r.strike)])).sort((a,b)=>a-b);
+  const {labels, callVals, putVals} = buildIVDataset(strikes, data.calls, data.puts);
+  const n = strikes.length;
+  const r7  = state.rv.r7, r14 = state.rv.r14, r30 = state.rv.r30;
+
+  const ctx = document.getElementById('chartIVRV');
+  if(state.charts.ivrv) state.charts.ivrv.destroy();
+  state.charts.ivrv = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Call IV', data:callVals, borderColor:'#3ecf8e', backgroundColor:'transparent', pointRadius:2, tension:0.25, spanGaps:true},
+        {label:'Put IV',  data:putVals,  borderColor:'#ef5b5b', backgroundColor:'transparent', pointRadius:2, tension:0.25, spanGaps:true},
+        {label:'RV 7d',  data:Array(n).fill(r7),  borderColor:'#c9a94f', borderDash:[6,4], pointRadius:0, borderWidth:1.5},
+        {label:'RV 14d', data:Array(n).fill(r14), borderColor:'#8f7de0', borderDash:[6,4], pointRadius:0, borderWidth:1.5},
+        {label:'RV 30d', data:Array(n).fill(r30), borderColor:'#5bb8ef', borderDash:[6,4], pointRadius:0, borderWidth:1.5},
+      ]
+    },
+    options: baseAxisOpts('Strike', 'Volatility (%)')
+  });
+
+  const avgIv = (() => {
+    const all = [...callVals, ...putVals].filter(v=>v!=null);
+    return all.length ? all.reduce((a,b)=>a+b,0)/all.length : null;
+  })();
+  const spread = (avgIv!=null && r30!=null) ? (avgIv - r30) : null;
+  document.getElementById('rvMetrics').innerHTML =
+    `<span>Avg IV <b class="num">${avgIv!=null?avgIv.toFixed(1)+'%':'—'}</b></span>` +
+    `<span>RV 7d <b class="num" style="color:#c9a94f">${r7!=null?r7.toFixed(1)+'%':'—'}</b></span>` +
+    `<span>RV 14d <b class="num" style="color:#8f7de0">${r14!=null?r14.toFixed(1)+'%':'—'}</b></span>` +
+    `<span>RV 30d <b class="num" style="color:#5bb8ef">${r30!=null?r30.toFixed(1)+'%':'—'}</b></span>` +
+    (spread!=null ? `<span>IV−RV(30d) <b class="num" style="color:${spread>=0?'#3ecf8e':'#ef5b5b'}">${spread>=0?'+':''}${spread.toFixed(1)}pts</b> — premium looks ${spread>=0?'rich':'cheap'}</span>` : '');
+}
+
+function renderAll(){
+  const verifyEl = document.getElementById('verifyLink');
+  if(verifyEl) verifyEl.href = `https://www.bybit.com/en/trade/option/${state.coin}`;
+  if(!state.selectedExpiry){
+    document.getElementById('oiMetrics').innerHTML='';
+    return;
+  }
+  const data = state.tickersByExpiry[state.selectedExpiry];
+  renderOIChart(data);
+  renderIVChart(data);
+  renderIVRVChart(data);
+}
+
+// ---------- wiring ----------
+document.getElementById('refreshBtn').onclick = loadAll;
+
+renderCoinPicker();
+loadAll();
+</script>
+</body>
+</html>
